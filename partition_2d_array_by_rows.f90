@@ -106,7 +106,6 @@
       do i = 1,nrows
         do j = 1,ncols
           write(*,'(i3)',advance="no") B(i,j)
-          l = l+1
         end do
         write(*,*)
       end do
