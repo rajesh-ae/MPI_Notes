@@ -70,6 +70,7 @@
     call MPI_Type_create_subarray( 2, sizes, subsizes, starts,     &
                                    MPI_ORDER_FORTRAN, MPI_INTEGER, &
                                    blocktype, ierr)
+    call MPI_Type_commit(blocktype, ierr)  ! This is not truly necessary
 
     ! This subarray type should be resized to be usable in collective operations
     ! The original extent of the type blocktype = nrows x ncols x MPI_INTEGER
@@ -121,5 +122,7 @@
     end if
 !    call mpi_barrier(mpi_comm_world,ierr)
 !    call mpi_abort(mpi_comm_world,1,ierr)
+    call MPI_Type_free(resizedtype,ierr)
+    call MPI_Type_free(blocktype,ierr)
     call mpi_finalize(ierr)
     end program partition_2d_array_by_rows

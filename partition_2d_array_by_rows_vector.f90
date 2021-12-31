@@ -112,6 +112,8 @@
       end do
     end if
 
+    call mpi_type_free(rowtype_resized,ierr)
+    call mpi_type_free(rowtype,ierr)
     call mpi_finalize(ierr)
     end program partition_2d_array_by_rows
 
