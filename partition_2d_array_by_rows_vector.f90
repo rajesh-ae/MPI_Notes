@@ -17,11 +17,13 @@
     integer :: i, j, k, l
     integer :: nrows, ncols, nrows_local
     integer,allocatable,dimension(:,:) :: A, A_local, B
+    logical :: array_compare
 
     integer :: ierr, rank, nprocs
     integer(kind = mpi_address_kind) :: lb, extent
     integer :: rowtype, rowtype_resized
-    
+    integer,allocatable,dimension(:) :: counts, displs
+
     call mpi_init(ierr)
     call mpi_comm_rank(mpi_comm_world,rank,ierr)
     call mpi_comm_size(mpi_comm_world,nprocs,ierr)
@@ -43,6 +45,7 @@
     if(rank .eq. 0) write(*,'(a i2)') 'Number of rows to be given to each process = ',nrows_local
 
     allocate(A(nrows,ncols),A_local(nrows_local,ncols),B(nrows,ncols))
+    allocate(counts(nprocs),displs(nprocs))
 
     ! In process 0, matrix A is created and printed to screen
     if(rank .eq. 0) then
@@ -94,22 +97,39 @@
     end do
     
     ! Reassemble the parts A_local into a global array B in rank 0
-    call mpi_gather(A_local, nrows_local*ncols, MPI_INTEGER, &
-                   B, 1, rowtype_resized, 0, mpi_comm_world, ierr)
+!    call mpi_gather(A_local, nrows_local*ncols, MPI_INTEGER, &
+!                   B, 1, rowtype_resized, 0, mpi_comm_world, ierr)
                    
     ! For everyone to gather the global matrix
     ! call mpi_allgather(A_local, nrows_local*ncols, MPI_INTEGER, &
     !                   A, 1, rowtype_resized, mpi_comm_world, ierr)
+
+!   MPI_Gatherv works for all sizes
+    do i = 1,nprocs
+      counts(i) = 1     ! we will gather one of these new types from everyone
+      displs(i) = i-1   ! the starting point of everyone's data
+                        ! in the global array, in block extents
+    end do
+    call MPI_Gatherv( A_local, nrows_local*ncols, MPI_INTEGER, & ! I'm sending localsize**2 chars
+                      B, counts, displs, rowtype_resized,&
+                      0, MPI_COMM_WORLD, ierr)
     
-    ! Print to screen as a check on the reassembling
+!     Print to screen as a check on the reassembling and compare
     if(rank .eq. 0) then
+      array_compare = .true.
       write(*,'(a)') "Reassembled matrix : "
       do i = 1,nrows
         do j = 1,ncols
           write(*,'(i7)',advance="no") B(i,j)
+          if(B(i,j) .ne. A(i,j)) array_compare = .false.
         end do
         write(*,*)
       end do
+      if(array_compare) then
+        write(*,*) "Reassembled array comparison successful!"
+      else
+        write(*,*) "Reassembled array comparison failed!"
+      end if
     end if
 
     call mpi_type_free(rowtype_resized,ierr)

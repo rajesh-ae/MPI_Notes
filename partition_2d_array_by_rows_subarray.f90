@@ -139,7 +139,6 @@
       else
         write(*,*) "Reassembled array comparison failed!"
       end if
-
     end if
 
 !    call mpi_barrier(mpi_comm_world,ierr)
