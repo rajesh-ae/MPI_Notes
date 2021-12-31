@@ -17,12 +17,15 @@
     integer :: i, j, k, l
     integer :: nrows, ncols, nrows_local
     integer,allocatable,dimension(:,:) :: A, A_local, B
+    logical :: array_compare
 
     integer :: ierr, rank, nprocs
     integer(kind = mpi_address_kind) :: start, extent
     integer, dimension(2) :: starts, sizes, subsizes
     integer :: blocktype, resizedtype, intsize
-    
+    integer,allocatable,dimension(:) :: counts, displs
+
+
     call mpi_init(ierr)
     call mpi_comm_rank(mpi_comm_world,rank,ierr)
     call mpi_comm_size(mpi_comm_world,nprocs,ierr)
@@ -44,7 +47,7 @@
     if(rank .eq. 0) write(*,'(a i2)') 'Number of rows to be given to each process = ',nrows_local
 
     allocate(A(nrows,ncols),A_local(nrows_local,ncols),B(nrows,ncols))
-
+    allocate(counts(nprocs),displs(nprocs))
     ! In process 0, matrix A is created and printed to screen
     if(rank .eq. 0) then
     write(*,'(a)') "Matrix A in rank 0:"
@@ -106,20 +109,39 @@
     end do
 
 
-    call MPI_Gather( A_local, nrows_local*ncols, MPI_INTEGER, &  ! everyone send nrows_local*ncols reals
-                     A, 1, resizedtype,                   &  ! root gets 1 resized type from everyone
-                     0, MPI_COMM_WORLD, ierr)
+!    MPI_Gather is not working for large row sizes - don't know why
+!    call MPI_Gather( A_local, nrows_local*ncols, MPI_INTEGER, &  ! everyone send nrows_local*ncols reals
+!                     A, 1, resizedtype,                   &  ! root gets 1 resized type from everyone
+!                     0, MPI_COMM_WORLD, ierr)
 
-!     Print to screen as a check on the reassembling
+!   MPI_Gatherv works for all sizes
+    do i = 1,nprocs
+      counts(i) = 1     ! we will gather one of these new types from everyone
+      displs(i) = i-1   ! the starting point of everyone's data
+                        ! in the global array, in block extents
+    end do
+    call MPI_Gatherv( A_local, nrows_local*ncols, MPI_INTEGER, & ! I'm sending localsize**2 chars
+                      B, counts, displs, resizedtype,&
+                      0, MPI_COMM_WORLD, ierr)
+!     Print to screen as a check on the reassembling and compare
     if(rank .eq. 0) then
+      array_compare = .true.
       write(*,'(a)') "Reassembled matrix : "
       do i = 1,nrows
         do j = 1,ncols
-          write(*,'(i7)',advance="no") A(i,j)
+          write(*,'(i7)',advance="no") B(i,j)
+          if(B(i,j) .ne. A(i,j)) array_compare = .false.
         end do
         write(*,*)
       end do
+      if(array_compare) then
+        write(*,*) "Reassembled array comparison successful!"
+      else
+        write(*,*) "Reassembled array comparison failed!"
+      end if
+
     end if
+
 !    call mpi_barrier(mpi_comm_world,ierr)
 !    call mpi_abort(mpi_comm_world,1,ierr)
     call MPI_Type_free(resizedtype,ierr)
