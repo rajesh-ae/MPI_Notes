@@ -7,7 +7,7 @@
 !   we would want to reassemble the original array (or similar) from such partitioned local arrays
 
 !   Compiling and running:
-!   mpif90 myscatter.f90
+!   mpif90 partition_2d_array_by_rows_vector.f90
 !   mpirun -np 6 ./a.out
 
     program partition_2d_array_by_rows
@@ -37,9 +37,9 @@
       stop
     end if
 
-    nrows = 12
-    ncols = 5
-    nrows_local = nrows/nprocs
+    nrows = 12  ! This is the row size of global array
+    ncols = 5   ! This is the column size of global array
+    nrows_local = nrows/nprocs   ! This is the row size of local (partitioned) array
     if(rank .eq. 0) write(*,'(a i2)') 'Number of rows to be given to each process = ',nrows_local
 
     allocate(A(nrows,ncols),A_local(nrows_local,ncols),B(nrows,ncols))
@@ -52,7 +52,7 @@
         do j = 1,ncols
           A(i,j) = k
           k = k+1
-          write(*,'(i3)',advance="no") A(i,j)
+          write(*,'(i7)',advance="no") A(i,j)
         end do
         write(*,*)
       end do
@@ -60,20 +60,21 @@
     end if
     
     ! A strided vector type is created for MPI to handle nrows_local x ncols size arrays
-    call mpi_type_vector(ncols, nrows_local, nrows, mpi_integer, rowtype, ierr)
+    call mpi_type_vector(ncols, nrows_local, nrows, MPI_INTEGER, rowtype, ierr)
     call mpi_type_commit(rowtype, ierr)
 
     ! This vector type should be resized to be usable in collective operations
-    ! The original extent of the type rowtype = nrows x ncols x mpi_integer
-    ! The modified extent of new type = nrows_local x mpi_integer
-    call mpi_type_get_extent(mpi_integer, lb, extent, ierr)
+    ! The original extent of the type rowtype = nrows x ncols x MPI_INTEGER
+    ! The modified extent of new type = nrows_local x MPI_INTEGER
+    call mpi_type_get_extent(MPI_INTEGER, lb, extent, ierr)
     extent = extent * nrows_local
+
     call mpi_type_create_resized(rowtype, lb, extent, rowtype_resized, ierr)
     call mpi_type_commit(rowtype_resized, ierr)
 
     ! Partition and scatter the A matrix as nrows_local x ncols pieces
     ! Each process receives and stores their part as A_local
-    call mpi_scatter(A,1,rowtype_resized,A_local,nrows_local*ncols,mpi_integer,0,mpi_comm_world,ierr)
+    call mpi_scatter(A,1,rowtype_resized,A_local,nrows_local*ncols,MPI_INTEGER,0,mpi_comm_world,ierr)
 
     ! Print to screen as a check on the partitioning
     call mpi_barrier(mpi_comm_world,ierr)
@@ -83,7 +84,7 @@
         write(*,'(a i1 a)') "rank ", rank ," matrix : "
         do i = 1,nrows_local
           do j = 1,ncols
-            write(*,'(i3)',advance="no") A_local(i,j)
+            write(*,'(i7)',advance="no") A_local(i,j)
           end do
           write(*,*)
         end do
@@ -93,11 +94,11 @@
     end do
     
     ! Reassemble the parts A_local into a global array B in rank 0
-    call mpi_gather(A_local, nrows_local*ncols, mpi_integer, &
+    call mpi_gather(A_local, nrows_local*ncols, MPI_INTEGER, &
                    B, 1, rowtype_resized, 0, mpi_comm_world, ierr)
                    
     ! For everyone to gather the global matrix
-    ! call mpi_allgather(A_local, nrows_local*ncols, mpi_integer, &
+    ! call mpi_allgather(A_local, nrows_local*ncols, MPI_INTEGER, &
     !                   A, 1, rowtype_resized, mpi_comm_world, ierr)
     
     ! Print to screen as a check on the reassembling
@@ -105,7 +106,7 @@
       write(*,'(a)') "Reassembled matrix : "
       do i = 1,nrows
         do j = 1,ncols
-          write(*,'(i3)',advance="no") B(i,j)
+          write(*,'(i7)',advance="no") B(i,j)
         end do
         write(*,*)
       end do
