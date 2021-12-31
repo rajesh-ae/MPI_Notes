@@ -74,10 +74,11 @@
     ! This subarray type should be resized to be usable in collective operations
     ! The original extent of the type blocktype = nrows x ncols x MPI_INTEGER
     ! The modified extent of new type = nrows_local x MPI_INTEGER
-    start = 0
+
     call MPI_Type_size(MPI_INTEGER, intsize, ierr)
     extent = intsize*nrows_local
 
+    start = 0
     call MPI_Type_create_resized(blocktype, start, extent, resizedtype, ierr)
     call MPI_Type_commit(resizedtype, ierr)
 
