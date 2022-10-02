@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
   MPI_Offset offset;
 
   char test_txt[10];
-  int i,iproc,mylen,total_len;
+  int i,iproc,arr_len_local,total_len;
   int len_arr[6], disp_arr[6];
 
   // Prepare some sample data
@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
       break;
   }
   
-  mylen = strlen(test_txt);
+  arr_len_local = strlen(test_txt);
   
   // Print to screen the individual process data
   if(rank == 0) printf("\nIndividual process data: \n");
@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
   }
   
   // Everyone gets the data sizes
-  MPI_Allgather(&mylen, 1,MPI_INT, &len_arr[0], 1, MPI_INT, MPI_COMM_WORLD);
+  MPI_Allgather(&arr_len_local, 1,MPI_INT, &len_arr[0], 1, MPI_INT, MPI_COMM_WORLD);
 
   total_len = 0;
   for(i=0;i<size;i++) total_len += len_arr[i];
@@ -100,21 +100,21 @@ int main(int argc, char *argv[])
   // Method 1: Using explicit offset
   MPI_File_delete("file_exp_offset.dat", MPI_INFO_NULL);
   MPI_File_open(MPI_COMM_WORLD, "file_exp_offset.dat", MPI_MODE_CREATE|MPI_MODE_WRONLY, MPI_INFO_NULL, &file_handle);
-  MPI_File_write_at_all(file_handle, disp_arr[rank], test_txt,mylen,MPI_CHAR,MPI_STATUS_IGNORE);
+  MPI_File_write_at_all(file_handle, disp_arr[rank], test_txt,arr_len_local,MPI_CHAR,MPI_STATUS_IGNORE);
   MPI_File_close(&file_handle);
   
   // Method 2: Using individual file pointers
   MPI_File_delete("file_ind_ptr.dat", MPI_INFO_NULL);
   MPI_File_open(MPI_COMM_WORLD, "file_ind_ptr.dat", MPI_MODE_CREATE|MPI_MODE_WRONLY, MPI_INFO_NULL, &file_handle);
   MPI_File_set_view(file_handle, disp_arr[rank], MPI_CHAR, char_array_mpi,"native", MPI_INFO_NULL);
-  MPI_File_write_all(file_handle, test_txt, mylen, MPI_CHAR, MPI_STATUS_IGNORE);
+  MPI_File_write_all(file_handle, test_txt, arr_len_local, MPI_CHAR, MPI_STATUS_IGNORE);
   MPI_File_close(&file_handle);
 
   // Method 3: Using shared file pointers
   MPI_File_delete("file_shr_ptr.dat", MPI_INFO_NULL);
   MPI_File_open(MPI_COMM_WORLD, "file_shr_ptr.dat", MPI_MODE_CREATE|MPI_MODE_WRONLY, MPI_INFO_NULL, &file_handle);
   MPI_File_set_view(file_handle, disp_arr[rank], MPI_CHAR, char_array_mpi,"native", MPI_INFO_NULL);
-  MPI_File_write_ordered(file_handle, test_txt, mylen, MPI_CHAR,MPI_STATUS_IGNORE);
+  MPI_File_write_ordered(file_handle, test_txt, arr_len_local, MPI_CHAR,MPI_STATUS_IGNORE);
   MPI_File_close(&file_handle);
 
   MPI_Finalize();
