@@ -24,6 +24,8 @@
 #include <mpi.h>
 #include <string.h>
 
+#define MAX_STR_LEN 10
+
 int main(int argc, char *argv[])
 {
 
@@ -42,9 +44,8 @@ int main(int argc, char *argv[])
 
   MPI_File file_handle;
   MPI_Datatype char_array_mpi;
-  MPI_Offset offset;
 
-  char test_txt[10];
+  char test_txt[MAX_STR_LEN];
   int i,iproc,arr_len_local,total_len;
   int len_arr[6], disp_arr[6];
 
