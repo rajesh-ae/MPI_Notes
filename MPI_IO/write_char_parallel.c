@@ -46,8 +46,7 @@ int main(int argc, char *argv[])
   MPI_Datatype char_array_mpi;
 
   char test_txt[MAX_STR_LEN];
-  int i,iproc,arr_len_local,total_len;
-  int len_arr[6], disp_arr[6];
+  int i,iproc,arr_len_local,total_len,disp;
 
   // Prepare some sample data
   switch(rank) {
@@ -83,38 +82,33 @@ int main(int argc, char *argv[])
     MPI_Barrier(MPI_COMM_WORLD);
   }
   
-  // Everyone gets the data sizes
-  MPI_Allgather(&arr_len_local, 1,MPI_INT, &len_arr[0], 1, MPI_INT, MPI_COMM_WORLD);
+  // Everyone calculates the global length of data
+  MPI_Allreduce(&arr_len_local, &total_len, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
-  total_len = 0;
-  for(i=0;i<size;i++) total_len += len_arr[i];
-
-  // Displacement of local data in the global array
-  disp_arr[0] = 0;
-  for(i=1;i<size;i++) disp_arr[i] = disp_arr[i-1] + len_arr[i-1];
+  // Calculate displacement of local data in the global array
+  MPI_Exscan(&arr_len_local,&disp,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
+  if(rank == 0) disp = 0;
 
   // Create a MPI datatype for the global array 
-  // -> required for individual and shared file pointer methods
-  MPI_Type_indexed(size, len_arr,disp_arr, MPI_CHAR, &char_array_mpi);
+  MPI_Type_create_subarray(1, &total_len, &arr_len_local, &disp, MPI_ORDER_C, MPI_CHAR, &char_array_mpi);
   MPI_Type_commit(&char_array_mpi);
 
   // Method 1: Using explicit offset
   MPI_File_delete("file_exp_offset.dat", MPI_INFO_NULL);
   MPI_File_open(MPI_COMM_WORLD, "file_exp_offset.dat", MPI_MODE_CREATE|MPI_MODE_WRONLY, MPI_INFO_NULL, &file_handle);
-  MPI_File_write_at_all(file_handle, disp_arr[rank], test_txt,arr_len_local,MPI_CHAR,MPI_STATUS_IGNORE);
+  MPI_File_write_at_all(file_handle, disp, test_txt,arr_len_local,MPI_CHAR,MPI_STATUS_IGNORE);
   MPI_File_close(&file_handle);
   
   // Method 2: Using individual file pointers
   MPI_File_delete("file_ind_ptr.dat", MPI_INFO_NULL);
   MPI_File_open(MPI_COMM_WORLD, "file_ind_ptr.dat", MPI_MODE_CREATE|MPI_MODE_WRONLY, MPI_INFO_NULL, &file_handle);
-  MPI_File_set_view(file_handle, disp_arr[rank], MPI_CHAR, char_array_mpi,"native", MPI_INFO_NULL);
+  MPI_File_set_view(file_handle, 0, MPI_CHAR, char_array_mpi,"native", MPI_INFO_NULL);
   MPI_File_write_all(file_handle, test_txt, arr_len_local, MPI_CHAR, MPI_STATUS_IGNORE);
   MPI_File_close(&file_handle);
 
   // Method 3: Using shared file pointers
   MPI_File_delete("file_shr_ptr.dat", MPI_INFO_NULL);
   MPI_File_open(MPI_COMM_WORLD, "file_shr_ptr.dat", MPI_MODE_CREATE|MPI_MODE_WRONLY, MPI_INFO_NULL, &file_handle);
-  MPI_File_set_view(file_handle, disp_arr[rank], MPI_CHAR, char_array_mpi,"native", MPI_INFO_NULL);
   MPI_File_write_ordered(file_handle, test_txt, arr_len_local, MPI_CHAR,MPI_STATUS_IGNORE);
   MPI_File_close(&file_handle);
 
